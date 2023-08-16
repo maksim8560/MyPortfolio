@@ -46,6 +46,7 @@ ul li:hover a span {
     0 0 15px #fff,
     0 0 30px #fff,
     0 0 60px #fff,
+    0 0 60px #fff,
     0 0 100px #fff;
 
 
@@ -66,4 +67,29 @@ ul li:hover a span {
 
 body:hover #cursor {
   Opacity: 1;
+}
+
+
+
+
+
+#Portfolio {
+  color: #837575;
+  width: 300px;
+  height: 600px;
+  position: fixed;
+  font-size: 1.5em;
+  letter-spacing: 0.05em;
+  transition: 1s;
+  text-transform: uppercase;
+}
+
+#Portfolio:hover {
+  color: #ffffff;
+  text-shadow:
+    0 0 5px #fff,
+    0 0 15px #eea7a7,
+    0 0 30px #ec4a4a,
+    0 0 60px #f11919,
+    0 0 100px #ff0000;
 }
