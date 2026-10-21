@@ -11,20 +11,20 @@
 ## Что внутри
 
 ```
-portfolio-go/
-  server/            Go-бэкенд (один бинарник)
-    main.go          конфиг, graceful shutdown
-    app.go           маршруты и JSON API
-    content.go       структуры контента + стартовые значения
-    store.go         хранилище data/content.json, валидация, атомарная запись
-    auth.go          вход в админку, сессии, лимит попыток
-    admin.go         CRUD-эндпоинты админки
-    lang.go          выбор языка (?lang= → Accept-Language → ru)
-    spa.go           раздача dist и SPA-фолбэк
-    dist/            сюда собирается фронтенд (встраивается в бинарник)
-  web/               Vue 3 + TypeScript + Vite
-    src/App.vue      страница портфолио
-    src/admin/       админка (отдельный чанк, грузится только на /admin)
+server/            Go-бэкенд (один бинарник)
+  main.go          конфиг, graceful shutdown
+  app.go           маршруты и JSON API
+  content.go       структуры контента + стартовые значения
+  store.go         хранилище data/content.json, валидация, атомарная запись
+  auth.go          вход в админку, сессии, лимит попыток
+  admin.go         CRUD-эндпоинты админки
+  lang.go          выбор языка (?lang= → Accept-Language → ru)
+  spa.go           раздача dist и SPA-фолбэк
+  dist/            сюда собирается фронтенд (встраивается в бинарник)
+web/               Vue 3 + TypeScript + Vite
+  src/App.vue      страница портфолио
+  src/admin/       админка (отдельный чанк, грузится только на /admin)
+docs/              скриншоты для README
 ```
 
 ## Запуск
@@ -120,7 +120,7 @@ $env:ADMIN_PASSWORD="длинный-пароль"; .\portfolio.exe
   такой запрос не отправит.
 * Ссылки валидируются: `javascript:` не сохранится.
 * `content.json` пишется атомарно, предыдущая версия остаётся в `content.json.bak`.
-* `server/data/` не коммитится: там пароль. Добавь `.gitignore`.
+* `server/data/` в `.gitignore`: там пароль админки и контент, в репозиторий они не попадают.
 
 ## Деплой
 
