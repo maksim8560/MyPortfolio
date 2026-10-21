@@ -21,10 +21,6 @@ function submit() {
         админка
       </p>
       <h1 class="admin-login__title">Вход</h1>
-      <p class="admin-login__lead">
-        Пароль задаётся переменной <code>ADMIN_PASSWORD</code> или берётся из
-        <code>data/admin-password.txt</code>.
-      </p>
 
       <label class="field">
         <span class="field__label">Пароль</span>
