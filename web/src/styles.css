@@ -477,7 +477,9 @@ code {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Колонок столько, сколько цифр: админ может оставить одну или добавить
+     восемь, и полоса не развалится на пустые клетки. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   padding-block: 0;
@@ -918,19 +920,15 @@ code {
   }
 
   .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stat {
-    border-left: 1px solid var(--line);
-  }
-
-  .stat:nth-child(odd) {
     border-left: 0;
-    padding-left: 0;
+    padding-inline: 0;
   }
 
-  .stat:nth-child(n + 3) {
+  .stat + .stat {
     border-top: 1px solid var(--line);
   }
 
