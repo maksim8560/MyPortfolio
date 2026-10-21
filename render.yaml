@@ -14,6 +14,14 @@ services:
         value: /data
       - key: ADMIN_PASSWORD
         sync: false
+      # Хранилище контента: без него правки живут только до рестарта.
+      # Значения берутся из Upstash → Redis → REST API.
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: UPSTASH_REDIS_KEY
+        value: portfolio:content
 
     # Персистентный диск: правки из админки выживают рестарт.
     # Требует платного плана (starter и выше) — на free диск не выдаётся.

@@ -33,6 +33,7 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"version": a.version,
 		"uptime":  int64(time.Since(a.startedAt).Seconds()),
 		"runtime": runtimeVersion(),
+		"storage": a.store.Storage(),
 	})
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,60 +20,118 @@ type Document struct {
 	EN Content `json:"en"`
 }
 
-// Store хранит документ в памяти и сохраняет его в JSON на диск.
-// Запись атомарная (tmp + rename) с резервной копией предыдущей версии.
+// Store хранит документ в памяти, а сохраняет в облако (Upstash) и в
+// локальный файл-кэш. Файл нужен как резерв и для запуска без сети.
 type Store struct {
 	mu      sync.RWMutex
 	path    string
 	doc     Document
 	savedAt time.Time
 	rev     int
+	remote  *remoteStore
 }
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
 
-func NewStore(dir string) (*Store, error) {
+func NewStore(dir string, remote *remoteStore) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("каталог данных: %w", err)
 	}
 	s := &Store{
-		path: filepath.Join(dir, "content.json"),
-		doc:  Document{RU: defaultRU(), EN: defaultEN()},
+		path:   filepath.Join(dir, "content.json"),
+		doc:    Document{RU: defaultRU(), EN: defaultEN()},
+		remote: remote,
 	}
 
+	if err := s.loadLocal(); err != nil {
+		return nil, err
+	}
+	if s.remote != nil {
+		s.syncFromRemote()
+	}
+	return s, nil
+}
+
+// loadLocal поднимает контент из файла, если он есть и цел.
+func (s *Store) loadLocal() error {
 	raw, err := os.ReadFile(s.path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		if err := s.persist(); err != nil {
-			return nil, err
-		}
-		slog.Info("создан файл контента", "path", s.path)
+		slog.Info("локального контента нет, беру значения по умолчанию", "path", s.path)
+		return nil
 	case err != nil:
-		return nil, fmt.Errorf("чтение %s: %w", s.path, err)
-	default:
-		var doc Document
-		if err := json.Unmarshal(raw, &doc); err != nil {
-			broken := fmt.Sprintf("%s.broken-%s", s.path, time.Now().Format("20060102-150405"))
-			_ = os.WriteFile(broken, raw, 0o600)
-			slog.Error("content.json повреждён, использую значения по умолчанию",
-				"err", err, "backup", broken)
-			if err := s.persist(); err != nil {
-				return nil, err
-			}
-		} else {
-			doc.RU.Lang = "ru"
-			doc.EN.Lang = "en"
-			s.doc = doc
-			s.rev = 1
-			// Время последнего сохранения берём у файла, иначе админка
-			// покажет нулевую дату.
-			if info, statErr := os.Stat(s.path); statErr == nil {
-				s.savedAt = info.ModTime()
-			}
-			slog.Info("контент загружен", "path", s.path, "projects", len(doc.RU.Projects))
-		}
+		return fmt.Errorf("чтение %s: %w", s.path, err)
 	}
-	return s, nil
+
+	var doc Document
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		broken := fmt.Sprintf("%s.broken-%s", s.path, time.Now().Format("20060102-150405"))
+		_ = os.WriteFile(broken, raw, 0o600)
+		slog.Error("content.json повреждён, использую значения по умолчанию",
+			"err", err, "backup", broken)
+		return nil
+	}
+
+	doc.RU.Lang = "ru"
+	doc.EN.Lang = "en"
+	s.doc = doc
+	s.rev = 1
+	// Время последнего сохранения берём у файла, иначе админка
+	// покажет нулевую дату.
+	if info, statErr := os.Stat(s.path); statErr == nil {
+		s.savedAt = info.ModTime()
+	}
+	slog.Info("локальный контент загружен", "path", s.path, "projects", len(doc.RU.Projects))
+	return nil
+}
+
+// syncFromRemote делает облако источником истины. Если там пусто — заливает
+// то, что уже есть, чтобы первый запуск не потерял контент.
+func (s *Store) syncFromRemote() {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	raw, found, err := s.remote.Load(ctx)
+	switch {
+	case err != nil:
+		slog.Error("облако недоступно, работаю с локальным кэшем", "err", err)
+		return
+
+	case !found:
+		data, mErr := marshalDoc(s.doc)
+		if mErr != nil {
+			slog.Error("не удалось сериализовать стартовый контент", "err", mErr)
+			return
+		}
+		if err := s.remote.Save(ctx, data); err != nil {
+			slog.Error("не удалось залить стартовый контент в облако", "err", err)
+			return
+		}
+		s.rev = 1
+		s.savedAt = time.Now()
+		_ = s.writeFile(data)
+		slog.Info("стартовый контент отправлен в облако", "key", s.remote.key)
+		return
+	}
+
+	var doc Document
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		slog.Error("в облаке повреждённый документ, оставляю локальный", "err", err)
+		return
+	}
+	if err := normalizeDocument(&doc); err != nil {
+		slog.Error("в облаке документ не проходит валидацию, оставляю локальный", "err", err)
+		return
+	}
+
+	s.doc = doc
+	s.rev = 1
+	s.savedAt = time.Now()
+	if data, mErr := marshalDoc(doc); mErr == nil {
+		_ = s.writeFile(data) // освежаем кэш, чтобы файл не врал
+	}
+	slog.Info("контент загружен из облака",
+		"key", s.remote.key, "projects", len(doc.RU.Projects))
 }
 
 // Content возвращает копию контента для языка.
@@ -95,33 +154,61 @@ func (s *Store) Snapshot() (Document, time.Time, int) {
 	return s.doc, s.savedAt, s.rev
 }
 
-// Save валидирует и сохраняет новый документ.
+// Save валидирует и сохраняет новый документ: сначала в облако, потом в
+// локальный кэш. Если облако не приняло — правка не считается сохранённой.
 func (s *Store) Save(doc Document) error {
 	if err := normalizeDocument(&doc); err != nil {
+		return err
+	}
+	data, err := marshalDoc(doc)
+	if err != nil {
 		return err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.remote != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := s.remote.Save(ctx, data); err != nil {
+			return fmt.Errorf("облако не приняло правку: %w", err)
+		}
+	}
+
 	prev := s.doc
 	s.doc = doc
-	if err := s.persist(); err != nil {
-		s.doc = prev // откат: на диске и в памяти должно быть одно и то же
-		return err
+	if err := s.writeFile(data); err != nil {
+		if s.remote == nil {
+			s.doc = prev // без облака файл — единственное хранилище
+			return err
+		}
+		slog.Warn("локальный кэш не записан, данные лежат в облаке", "err", err)
 	}
 	s.rev++
+	s.savedAt = time.Now()
 	return nil
 }
 
-// persist пишет файл. Вызывается под mu (или при инициализации).
-func (s *Store) persist() error {
-	data, err := json.MarshalIndent(s.doc, "", "  ")
-	if err != nil {
-		return fmt.Errorf("сериализация: %w", err)
+// Storage сообщает, где лежит контент, — видно в /api/healthz.
+func (s *Store) Storage() string {
+	if s.remote != nil {
+		return s.remote.Name()
 	}
-	data = append(data, '\n')
+	return "file"
+}
 
+func marshalDoc(doc Document) ([]byte, error) {
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("сериализация: %w", err)
+	}
+	return append(data, '\n'), nil
+}
+
+// writeFile пишет локальный кэш атомарно, оставляя предыдущую версию в .bak.
+// Вызывается под mu (или при инициализации).
+func (s *Store) writeFile(data []byte) error {
 	tmp := s.path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("запись tmp: %w", err)
@@ -135,7 +222,6 @@ func (s *Store) persist() error {
 	if err := os.Rename(tmp, s.path); err != nil {
 		return fmt.Errorf("переименование: %w", err)
 	}
-	s.savedAt = time.Now()
 	return nil
 }
 

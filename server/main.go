@@ -24,7 +24,7 @@ func main() {
 
 	cfg := loadConfig()
 
-	store, err := NewStore(cfg.DataDir)
+	store, err := NewStore(cfg.DataDir, newRemoteStore())
 	if err != nil {
 		logger.Error("не удалось открыть хранилище контента", "err", err)
 		os.Exit(1)
