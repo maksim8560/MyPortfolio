@@ -1,0 +1,26 @@
+# Blueprint для Render: Dashboard → New → Blueprint → этот репозиторий.
+# Подробности в README, раздел «Деплой».
+services:
+  - type: web
+    name: my-portfolio
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/healthz
+    autoDeploy: true
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: ADMIN_PASSWORD
+        sync: false
+
+    # Персистентный диск: правки из админки выживают рестарт.
+    # Требует платного плана (starter и выше) — на free диск не выдаётся.
+    # Раскомментируй вместе со сменой plan на starter:
+    #
+    # plan: starter
+    # disk:
+    #   name: portfolio-data
+    #   mountPath: /data
+    #   sizeGB: 1

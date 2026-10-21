@@ -1,0 +1,16 @@
+.git
+.gitignore
+.github
+docs
+README.md
+Makefile
+build.ps1
+
+# зависимости и артефакты пересобираются внутри образа
+web/node_modules
+server/dist
+*.exe
+server/portfolio
+
+# данные с паролём админки в образ не попадают
+server/data

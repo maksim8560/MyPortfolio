@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Собрать фронтенд
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.mod
+
+      - name: Проверить Go
+        working-directory: server
+        run: |
+          gofmt -l . | tee /tmp/fmt
+          test ! -s /tmp/fmt
+          go vet ./...
+
+      - name: Собрать бинарник
+        working-directory: server
+        run: go build -trimpath -ldflags "-s -w -X main.version=ci-${{ github.sha }}" -o portfolio .
+
+      - name: Проверить, что сервер поднимается
+        working-directory: server
+        run: |
+          DATA_DIR=/tmp/pf-data PORT=8099 ./portfolio &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8099/api/healthz >/tmp/health.json; then break; fi
+            sleep 0.5
+          done
+          cat /tmp/health.json
+          curl -fsS "http://127.0.0.1:8099/api/content?lang=ru" | head -c 200

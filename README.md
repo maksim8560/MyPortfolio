@@ -124,6 +124,43 @@ $env:ADMIN_PASSWORD="длинный-пароль"; .\portfolio.exe
 
 ## Деплой
 
-Собирается в один файл: `npm run build` → `go build`. Дальше любой хостинг,
-который умеет запускать бинарник (Render, Fly.io, VPS, Docker). Нужен только
-персистентный диск под `DATA_DIR`, иначе правки из админки пропадут при рестарте.
+Собирается в один файл (`npm run build` → `go build`), поэтому деплой — это
+«запусти контейнер». В репозитории есть `Dockerfile`, `.dockerignore` и
+`render.yaml`.
+
+Нужен только персистентный диск под `DATA_DIR` — иначе правки из админки
+пропадут при первом же рестарте.
+
+### Render
+
+Dashboard → **New → Blueprint** → выбрать репозиторий. Render прочитает
+`render.yaml`, соберёт Docker-образ и спросит `ADMIN_PASSWORD` (переменная
+помечена `sync: false`, в git её нет).
+
+По умолчанию манифест описывает бесплатный план: контент живёт в контейнере и
+сбрасывается при рестарте. Чтобы админка была настоящей, переключи `plan` на
+`starter` и раскомментируй блок `disk` — диск монтируется в `/data`.
+
+### Docker локально / на VPS
+
+```bash
+docker build -t portfolio .
+docker run -d --name portfolio -p 8080:8080 \
+  -e ADMIN_PASSWORD='длинный-пароль' \
+  -v portfolio-data:/data \
+  portfolio
+```
+
+`docker-entrypoint.sh` под root внутри контейнера поправит права на том и
+переключится на пользователя `app`.
+
+### Без Docker
+
+```bash
+cd web && npm ci && npm run build
+cd ../server && CGO_ENABLED=0 go build -o portfolio .
+DATA_DIR=/var/lib/portfolio ADMIN_PASSWORD='...' PORT=8080 ./portfolio
+```
+
+`data/content.json` переносится между машинами как обычный файл, `data/admin-password.txt`
+создаётся сам, если не задан `ADMIN_PASSWORD`.
