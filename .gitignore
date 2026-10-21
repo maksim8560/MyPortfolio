@@ -1,0 +1,17 @@
+# зависимости фронтенда
+web/node_modules/
+
+# сборка: пересоздаётся `npm run build`
+server/dist/
+
+# данные: контент и пароль админки
+server/data/
+data/
+
+# бинарники
+*.exe
+portfolio
+
+# прочее
+.DS_Store
+*.log

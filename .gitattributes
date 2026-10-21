@@ -1,0 +1,7 @@
+# Единые переводы строк: в репозитории LF, в PowerShell-скриптах CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.exe binary
