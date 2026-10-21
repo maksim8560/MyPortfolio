@@ -134,6 +134,9 @@ func defaultRU() Content {
 		},
 		Stats: []Stat{
 			{Value: "3", Label: "проекта в публичном проде"},
+			{Value: "E2E", Label: "шифрование в мессенджере"},
+			{Value: "0", Label: "npm-зависимостей у Sonora"},
+			{Value: "2", Label: "языка интерфейса"},
 		},
 		Work: Section{
 			Kicker: "Проекты",
@@ -260,6 +263,9 @@ func defaultEN() Content {
 		},
 		Stats: []Stat{
 			{Value: "3", Label: "projects in public production"},
+			{Value: "E2E", Label: "encryption in the messenger"},
+			{Value: "0", Label: "npm dependencies in Sonora"},
+			{Value: "2", Label: "interface languages"},
 		},
 		Work: Section{
 			Kicker: "Work",
